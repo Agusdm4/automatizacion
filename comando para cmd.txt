@@ -1,0 +1,6 @@
+LUEGO DE INSTALAR PYTHON POR COMPLETO, EN CMD EJECUTAR:
+python -m pip install PyPDF2 pandas openpyxl XlsxWriter numpy regex pytesseract pdf2image pillow
+
+
+UNA VEZ QUE EN LA CARPETA DE AUTOMATIZACIONES YA TENEMOS LA FACTURA EN PDF CON EL TITULO "factura.pdf" EJECUTAR EL SIGUIENTE COMANDO EN EL CMD PERO MODIFICANDO LA RUTA QUE ESTA A CONTINUACION POR LA CORRESPONDIENTE DE TU PC PERO ESTANDO DENTRO DE LA CARPETA "proyectoautomatizaciones":
+python append_from_pdf.py "C:\Users\agust\Downloads\proyectoautomatizaciones\factura.pdf"

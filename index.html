@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Factura (PDF) → Excel actualizado (100% Frontend)</title>
+  
+  <!-- CDN principales -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+
+  <style>
+    :root{ --bg:#0b1020; --card:#141b34; --muted:#9aa4c7; --text:#eef1ff; --brand:#7aa2ff; --brand-2:#8ef5c8; --danger:#ff6b6b; --ok:#20d19a; --radius:18px }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background: radial-gradient(1000px 600px at 85% -10%, rgba(122,162,255,.25), transparent 60%), radial-gradient(800px 500px at 10% 110%, rgba(142,245,200,.15), transparent 60%), var(--bg); color:var(--text)}
+    .container{ max-width:1100px; margin:40px auto; padding:0 20px; }
+    .title{ font-weight:800; font-size: clamp(26px, 2.8vw, 40px); letter-spacing:.3px; margin:10px 0 6px; }
+    .subtitle{ color:var(--muted); margin:0 0 24px; }
+    .grid{ display:grid; grid-template-columns: 1.1fr .9fr; gap:22px; }
+    @media (max-width: 950px){ .grid{ grid-template-columns: 1fr; } }
+    .card{ background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)) , var(--card); border:1px solid rgba(255,255,255,.05); border-radius:var(--radius); box-shadow:0 10px 24px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.02) }
+    .card .hd{ padding:18px 20px; border-bottom:1px solid rgba(255,255,255,.06); display:flex; align-items:center; gap:10px }
+    .card .hd h3{ margin:0; font-size:16px; font-weight:700; letter-spacing:.2px }
+    .card .bd{ padding:18px 20px; }
+    .dropzone{ border:1.5px dashed rgba(255,255,255,.18); border-radius:14px; padding:16px; display:flex; align-items:center; gap:14px; cursor:pointer; transition:.2s border-color, .2s background; background:rgba(255,255,255,.02)}
+    .dropzone:hover{ border-color:rgba(255,255,255,.35); background:rgba(255,255,255,.03)}
+    .dz-ico{ width:38px; height:38px; border-radius:12px; background:linear-gradient(135deg, var(--brand), var(--brand-2)); display:grid; place-items:center; font-weight:900; color:#0b1020 }
+    .dz-body{ display:flex; flex-direction:column; gap:2px }
+    .dz-title{ font-weight:700 }
+    .dz-sub{ color:var(--muted); font-size:12px }
+    input[type=file]{ display:none }
+    .btn{ appearance:none; border:none; padding:12px 16px; border-radius:14px; font-weight:800; letter-spacing:.3px; cursor:pointer; background:linear-gradient(135deg, var(--brand), var(--brand-2)); color:#0b1020; box-shadow: 0 10px 16px rgba(122,162,255,.25); transition:.2s transform, .2s filter }
+    .btn:hover{ transform: translateY(-1px); filter:brightness(1.04) }
+    .btn.secondary{ background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.15); box-shadow:none }
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+    .muted{ color:var(--muted)}
+    .pill{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); font-size:12px }
+    table{ width:100%; border-collapse:separate; border-spacing:0 8px; }
+    thead th{ text-align:left; color:var(--muted); font-weight:600; font-size:12px; padding:8px 10px }
+    tbody td{ background: rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); padding:12px 10px; font-size:14px }
+    tbody td:first-child{ border-top-left-radius:10px; border-bottom-left-radius:10px }
+    tbody td:last-child{ border-top-right-radius:10px; border-bottom-right-radius:10px }
+    .log{ font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size:12px; color:var(--muted); white-space:pre-wrap; max-height:180px; overflow:auto; background:rgba(0,0,0,.25); padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.06) }
+    .ok{ color:var(--ok)} .err{ color:var(--danger)} .spinner{ width:16px; height:16px; border:2px solid rgba(255,255,255,.25); border-top-color:var(--brand); border-radius:50%; animation:spin .85s linear infinite }
+    @keyframes spin{ to{ transform: rotate(360deg) }}
+    .footer{ color:var(--muted); font-size:12px; text-align:center; margin:22px 0 }
+    .kbd{ background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); padding:2px 6px; border-radius:6px; font-family: ui-monospace, monospace; font-size:11px }
+  </style>
+
+  <!-- Loader de librerías con fallback automático -->
+  <script>
+    (function(){
+      const CDN = {
+        xlsx: [
+          'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
+          './vendor/xlsx.full.min.js'
+        ],
+        pdf: [
+          'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+          './vendor/pdf.min.js'
+        ],
+        pdfWorker: [
+          'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+          './vendor/pdf.worker.min.js'
+        ]
+      };
+      function loadScript(src){
+        return new Promise((resolve, reject)=>{
+          const s = document.createElement('script'); s.src = src; s.async = false; s.onload = ()=> resolve(src); s.onerror = ()=> reject(new Error('No cargó: '+src)); document.head.appendChild(s);
+        });
+      }
+      async function ensureOne(name, globals, sources){ if (globals.some(g => window[g])) return {loaded:false, from:'preloaded'}; let lastErr=null; for (const src of sources){ try { await loadScript(src); if (globals.some(g => window[g])) return {loaded:true, from:src}; } catch(e){ lastErr = e; } } throw new Error('No se pudo cargar '+name+(lastErr? (' — '+lastErr.message):'')); }
+      async function ensureLibraries(){ const x = await ensureOne('XLSX', ['XLSX'], CDN.xlsx).catch(e=>({error:e})); const p = await ensureOne('PDF.js', ['pdfjsLib'], CDN.pdf).catch(e=>({error:e})); if (window.pdfjsLib){ for (const w of CDN.pdfWorker){ try { pdfjsLib.GlobalWorkerOptions.workerSrc = w; break; } catch(_){} } } return {xlsx:x, pdf:p, ok: !!window.XLSX && !!window.pdfjsLib}; }
+      window.__ensureLibs = ensureLibraries;
+    })();
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div class="title">Factura (PDF) → Excel actualizado</div>
+    <div class="subtitle">Corre <b>100% en tu navegador</b>. Adjuntá un PDF y (opcional) un Excel. Extraemos datos con heurísticas avanzadas y generamos un Excel actualizado para descargar. Activá el <b>modo avanzado</b> si el PDF es difícil.</div>
+
+    <div class="grid">
+      <section class="card">
+        <div class="hd"><h3>1) Subí tus archivos</h3></div>
+        <div class="bd">
+          <label class="dropzone" for="pdfInput">
+            <div class="dz-ico">PDF</div>
+            <div class="dz-body">
+              <div class="dz-title">Factura en PDF</div>
+              <div class="dz-sub">Click para elegir o soltá el archivo acá</div>
+            </div>
+          </label>
+          <input id="pdfInput" type="file" accept="application/pdf" />
+          <div class="row" style="margin:8px 0 18px"><span class="pill" id="pdfStatus">Ningún PDF</span></div>
+
+          <label class="dropzone" for="xlsxInput">
+            <div class="dz-ico">XL</div>
+            <div class="dz-body">
+              <div class="dz-title">Excel de trabajo (opcional)</div>
+              <div class="dz-sub">Si no subís, se creará uno nuevo con las columnas requeridas</div>
+            </div>
+          </label>
+          <input id="xlsxInput" type="file" accept=".xlsx,.xls" />
+          <div class="row" style="margin:8px 0 0"><span class="pill" id="xlsxStatus">Sin Excel</span></div>
+
+          <hr style="border:none; border-top:1px solid rgba(255,255,255,.08); margin:18px 0" />
+          <div class="row">
+            <button class="btn" id="analyzeBtn"><span class="btn-label">Analizar PDF y previsualizar</span></button>
+            <button class="btn secondary" id="resetBtn">Reiniciar</button>
+            <label class="pill" style="cursor:pointer"><input type="checkbox" id="advMode" style="accent-color:#20d19a; vertical-align:middle; margin-right:6px"/> Modo avanzado (reconstrucción de líneas + normalización)</label>
+          </div>
+          <div style="height:10px"></div>
+          <div class="row"><button class="btn secondary" id="showDebug">Inspector</button><span class="muted">Ver texto crudo y coincidencias</span></div>
+          <div style="height:10px"></div>
+          <div class="log" id="log">Listo para empezar. Nada sale de tu PC.</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="hd"><h3>2) Resultado y descarga</h3></div>
+        <div class="bd">
+          <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:10px">
+            <div class="muted">Previsualización de la fila a agregar (editable)</div>
+            <button class="btn" id="downloadBtn" disabled>Actualizar Excel y descargar</button>
+          </div>
+          <table>
+            <thead><tr><th>Campo</th><th>Valor detectado</th></tr></thead>
+            <tbody id="previewBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- Inspector -->
+    <div class="card" style="margin-top:18px">
+      <div class="hd"><h3>Inspector (texto crudo y coincidencias)</h3></div>
+      <div class="bd">
+        <div class="row" style="gap:16px; align-items:center">
+          <span class="pill">Longitud texto: <span id="lenTxt">0</span></span>
+          <span class="pill">Coincidencias contenedores: <span id="cntCont">0</span></span>
+        </div>
+        <div style="height:10px"></div>
+        <textarea id="rawText" style="width:100%; min-height:180px; background:rgba(0,0,0,.25); color:var(--text); border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:10px" placeholder="Acá vas a ver el texto extraído..."></textarea>
+      </div>
+    </div>
+
+    <div class="footer">Sugerencia: si abrís el archivo con <span class="kbd">file://</span> y el worker se bloquea, serví la carpeta con <span class="kbd">python -m http.server 8000</span> y abrí <span class="kbd">http://localhost:8000/</span>.</div>
+  </div>
+
+  <script>
+  window.addEventListener('DOMContentLoaded', async () => {
+    // ====== Referencias UI ======
+    const $ = sel => document.querySelector(sel);
+    const logEl = $('#log');
+    const pdfInput = $('#pdfInput');
+    const xlsxInput = $('#xlsxInput');
+    const pdfStatus = $('#pdfStatus');
+    const xlsxStatus = $('#xlsxStatus');
+    const analyzeBtn = $('#analyzeBtn');
+    const downloadBtn = $('#downloadBtn');
+    const resetBtn = $('#resetBtn');
+    const previewBody = $('#previewBody');
+
+    // ====== Log helper ======
+    function log(msg, cls=''){
+      const time = new Date().toLocaleTimeString();
+      logEl.innerHTML = `[${time}] ${cls?`<span class="${cls}">`:''}${msg}${cls?'</span>':''}\n` + logEl.innerHTML;
+    }
+
+    // ====== Verificar/cargar librerías ======
+    let libs;
+    try{ libs = await (window.__ensureLibs ? window.__ensureLibs() : { ok: (!!window.XLSX && !!window.pdfjsLib) }); }catch(e){ libs = { ok:false }; }
+    if(!libs.ok){
+      const xOk = !!window.XLSX, pOk = !!window.pdfjsLib;
+      if(!xOk) { const msg = '❌ XLSX no cargó. Usá el CDN oficial o ./vendor/xlsx.full.min.js'; log(msg, 'err'); alert(msg); }
+      if(!pOk){ const msg = '❌ PDF.js no cargó. Verificá conexión o ./vendor/pdf.min.js'; log(msg, 'err'); alert(msg); }
+      return;
+    }
+
+    // ====== Configurar worker de PDF.js ======
+    const PDFJS_VER = '3.11.174';
+    try{ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VER}/build/pdf.worker.min.js`; log(`PDF.js listo (v${PDFJS_VER}).`, 'ok'); }catch(e){ log('No se pudo inicializar el worker: '+ e.message, 'err'); }
+
+    // ====== Constantes ======
+    const COLUMNS = [
+      'Customer Order Number', 'Número de B/L', 'Contenedores (uno por línea)', 'Producto', 'Toneladas Netas (kg)', 'Precio Final (USD)', 'Número de Factura'
+    ];
+
+    // ====== Utilidades ======
+    function readFileAsArrayBuffer(file){ return new Promise((resolve, reject)=>{ const fr = new FileReader(); fr.onload = ()=>resolve(fr.result); fr.onerror = reject; fr.readAsArrayBuffer(file); }); }
+
+    async function extractPdfText(file, {advanced=false}={}){
+      const data = await readFileAsArrayBuffer(file);
+      const pdf = await pdfjsLib.getDocument({data}).promise;
+      let textSimple = '';
+      let textAdvanced = '';
+      for(let p=1;p<=pdf.numPages;p++){
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent({normalizeWhitespace:false, disableCombineTextItems:false});
+        // Método simple
+        const simple = content.items.map(it=>it.str).join(' ');
+        textSimple += simple + '\n';
+        // Método avanzado: reconstrucción por líneas con posiciones X/Y
+        const lines = new Map();
+        for(const it of content.items){
+          const t = it.str || ''; if(!t) continue;
+          const tr = it.transform; const x = tr[4], y = tr[5];
+          const yKey = Math.round(y/2)*2; // agrupar por Y aprox (tolerante)
+          if(!lines.has(yKey)) lines.set(yKey, []);
+          lines.get(yKey).push({x, t});
+        }
+        const ordered = [...lines.entries()].sort((a,b)=> b[0]-a[0]).map(([,arr])=> arr.sort((u,v)=> u.x-v.x).map(o=>o.t).join(' '));
+        textAdvanced += ordered.join('\n') + '\n\n';
+      }
+      const norm = s => s.replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\s+\|\s+/g,' | ').replace(/[\t\r]+/g,' ').replace(/ +/g,' ').replace(/\s*\n\s*/g,'\n').trim();
+      textSimple = norm(textSimple); textAdvanced = norm(textAdvanced);
+      return advanced ? (textAdvanced + '\n\n' + textSimple) : textSimple;
+    }
+
+    function fillPreview(row){
+      previewBody.innerHTML = '';
+      COLUMNS.forEach(c => {
+        const tr = document.createElement('tr');
+        const td1 = document.createElement('td'); td1.textContent = c;
+        const td2 = document.createElement('td');
+        const inp = document.createElement('textarea');
+        inp.value = row[c] || '';
+        inp.rows = Math.min(6, Math.max(1, (row[c]||'').split('\n').length));
+        inp.style.width = '100%'; inp.style.background = 'transparent'; inp.style.color = 'var(--text)';
+        inp.style.border = '1px solid rgba(255,255,255,.12)'; inp.style.borderRadius='8px'; inp.style.padding='8px';
+        inp.addEventListener('input', ()=>{ row[c] = inp.value; });
+        td2.appendChild(inp);
+        tr.appendChild(td1); tr.appendChild(td2);
+        previewBody.appendChild(tr);
+      });
+    }
+
+    // ====== Parsers mejorados ======
+    function parse_invoice_number(text){
+      let m;
+      m = text.match(/(?:^|\n)\s*(?:Invoice|Factura)\s*(?:No\.?|N°|#|:)\s*([A-Z0-9\-]{5,})\b/i); if(m) return m[1];
+      m = text.match(/(?:^|\n)\s*Invoice\s+([0-9]{6,})\b/i); if(m) return m[1];
+      m = text.match(/\bInv(?:oice)?\s*(?:No\.?|#|:)\s*([A-Z0-9\-]{5,})\b/i); if(m) return m[1];
+      return '';
+    }
+    function parse_customer_order(text){
+      let m = text.match(/\bCE-\d{4}-\d{2}\b/); if(m) return m[0];
+      m = text.match(/Customer\s+Order\s+Number\s*[:#]?\s*([A-Za-z0-9\-\/]+)/i);
+      if(m){ const val = m[1]; const m2 = val.match(/\bCE-\d{4}-\d{2}\b/); if(m2) return m2[0]; const m3 = val.match(/[A-Za-z0-9\-\/]+/); return m3? m3[0] : ''; }
+      return '';
+    }
+    function parse_bl_number(text){
+      let m = text.match(/(?:^|\n)\s*(?:BILL\s+OF\s+LADING\s*(?:No\.|Number)?|B\/?L\s*(?:No\.|Number)?)\s*[:#]?\s*([A-Z0-9\-]{8,20})/i);
+      if(m && /\d/.test(m[1])) return m[1];
+      const KWS = ['BILL OF LADING','RIDER PAGE','RIDER','BL NO','B/L NO','BL NUMBER'];
+      for(const kw of KWS){
+        let idx=-1; const U=text.toUpperCase();
+        while((idx = U.indexOf(kw.toUpperCase(), idx+1))!==-1){
+          const start=Math.max(0, idx-350), end=Math.min(text.length, idx+kw.length+350);
+          const win=text.slice(start,end);
+          const cands=[...win.matchAll(/\b(?!EBKG)[A-Z]{3,6}[A-Z0-9\-]{6,14}\b/g)].map(m=>m[0]).filter(tok=>/\d/.test(tok) && !/\b[A-Z]{4}\d{7}\b/.test(tok));
+          const filtered=cands.filter(tok=>{ const pos=win.indexOf(tok); const near=win.slice(Math.max(0,pos-60), pos+tok.length+60); return !/BOOKING\s+REF/i.test(near); });
+          if(filtered.length){ filtered.sort((a,b)=> b.length-a.length); return filtered[0]; }
+        }
+      }
+      for(const mm of text.matchAll(/\b(?!EBKG)[A-Z]{3,6}[A-Z0-9\-]{6,14}\b/g)){
+        const tok = mm[0]; if(!/\d/.test(tok)) continue; if(/\b[A-Z]{4}\d{7}\b/.test(tok)) continue;
+        const s=Math.max(0, mm.index-60), e=Math.min(text.length, mm.index+tok.length+60);
+        const near=text.slice(s,e); if(/BOOKING\s+REF/i.test(near)) continue; return tok;
+      }
+      return '';
+    }
+    function parse_containers(text){ const set = new Set((text.match(/\b[A-Z]{4}\d{7}\b/g) || [])); return Array.from(set).sort(); }
+    function parse_product(text){
+      const regexes = [
+        /(AGILITY[^\n]{0,140}?(?:LDPE|LLDPE|HDPE))/i,
+        /((?:LOW|LINEAR LOW|HIGH)\s+DENSITY\s+POLYETHYLENE[^\n]{0,120})/i,
+        /((?:POLYPROPYLENE|PP)\s+RESIN[^\n]{0,120})/i
+      ];
+      for(const re of regexes){ const m = text.match(re); if(m){ return m[1].replace(/™/g,'').replace(/\s+/g,' ').trim().toUpperCase(); } }
+      return '';
+    }
+    function parse_total_net_weight(text){
+      const tests = [
+        /TOTAL\s+NET\s+WEIGHT\s*[:#]?\s*([\d\.,]+)\s*(KG|KGS|KILOGRAMS)\b/i,
+        /NET\s+WEIGHT\s+TOTAL\s*[:#]?\s*([\d\.,]+)\s*(KG|KGS)\b/i,
+        /NET\s+MASS\s*[:#]?\s*([\d\.,]+)\s*KG\b/i,
+        /TOTAL\s+NET\s+WT\.?\s*[:#]?\s*([\d\.,]+)\s*(KG|KGS)\b/i,
+        /TOTAL\s+NET\s*[:#]?\s*([\d\.,]+)\s*(KG|KGS)\b/i
+      ];
+      for(const re of tests){ const m = text.match(re); if(m){ const n=parseFloat(m[1].replace(/,/g,'')); if(!isNaN(n)) return n.toFixed(3); } }
+      const alt = text.match(/TOTAL\s+(?:NET\s+)?(?:WEIGHT|MASS)\s*[:#]?\s*([\d\.,]+)\s*(MT|TONS?)\b/i);
+      if(alt){ const n=parseFloat(alt[1].replace(/,/g,'')); if(!isNaN(n)) return (n*1000).toFixed(3); }
+      let total=0, seen=new Set();
+      for(const m of text.matchAll(/\b([A-Z]{4}\d{7})\b/g)){
+        const code=m[1]; if(seen.has(code)) continue;
+        const s=Math.max(0,m.index-400), e=Math.min(text.length, m.index+code.length+400);
+        const win=text.slice(s,e);
+        const w=win.match(/Item\s+Net\s+Weight\s*:\s*([\d\.,]+)\s*KG/i);
+        if(w){ const n=parseFloat(w[1].replace(/,/g,'')); if(!isNaN(n)){ total+=n; seen.add(code);} }
+      }
+      return total>0? total.toFixed(3): '';
+    }
+    function parse_total_amount(text){
+      const money = [
+        /(?:^|\n)\s*Total\s*(?:Amount)?\s*[:#-]?\s*USD\s*([\d\.,]{2,})\b/i,
+        /(?:^|\n)\s*USD\s*([\d\.,]{2,})\s*(?:TOTAL|TOTAL\s*AMOUNT)\b/i,
+        /(?:^|\n)\s*Total\s*(?:Amount)?\s*[:#-]?\s*\$\s*([\d\.,]{2,})\b/i,
+      ];
+      for(const re of money){ const m=text.match(re); if(m){ const n=parseFloat(m[1].replace(/,/g,'')); if(!isNaN(n)) return n.toFixed(2);} }
+      let m = text.match(/(?:^|\n)\s*Total\s+([\d\.,]{2,})\b(?![^\n]{0,40}\b(KG|CD3|WEIGHT|VOLUME)\b)/i);
+      if(m){ const n=parseFloat(m[1].replace(/,/g,'')); if(!isNaN(n)) return n.toFixed(2); }
+      return '';
+    }
+    function parse_pdf(text){
+      return {
+        'Customer Order Number': parse_customer_order(text),
+        'Número de B/L': parse_bl_number(text),
+        'Contenedores (uno por línea)': parse_containers(text).join('\n'),
+        'Producto': parse_product(text),
+        'Toneladas Netas (kg)': parse_total_net_weight(text),
+        'Precio Final (USD)': parse_total_amount(text),
+        'Número de Factura': parse_invoice_number(text),
+      };
+    }
+
+    // ====== Excel helpers ======
+    function createBlankWorkbook(){ const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet([COLUMNS]); XLSX.utils.book_append_sheet(wb, ws, 'Datos'); return wb; }
+    function appendRowToWorkbook(wb, rowObj){ let ws = wb.Sheets['Datos']; if(!ws){ ws = XLSX.utils.aoa_to_sheet([COLUMNS]); XLSX.utils.book_append_sheet(wb, ws, 'Datos'); } const data = XLSX.utils.sheet_to_json(ws, {header:1}); if(data.length === 0){ data.push(COLUMNS); } const newRow = COLUMNS.map(c => rowObj[c] ?? ''); data.push(newRow); const newWs = XLSX.utils.aoa_to_sheet(data); wb.Sheets['Datos'] = newWs; }
+    function downloadWorkbook(wb, filename){ const out = XLSX.write(wb, {bookType: 'xlsx', type: 'array'}); const blob = new Blob([out], {type: 'application/octet-stream'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); setTimeout(()=> URL.revokeObjectURL(url), 1500); }
+
+    // ====== Estado ======
+    let currentPdfFile = null; let currentXlsxFile = null; let currentRow = null;
+
+    // ====== Listeners ======
+    pdfInput.addEventListener('change', (e)=>{ currentPdfFile = e.target.files?.[0] || null; pdfStatus.textContent = currentPdfFile ? `PDF: ${currentPdfFile.name}` : 'Ningún PDF'; log(currentPdfFile? `PDF seleccionado: ${currentPdfFile.name}` : 'PDF deseleccionado', currentPdfFile? 'ok' : ''); });
+    xlsxInput.addEventListener('change', (e)=>{ currentXlsxFile = e.target.files?.[0] || null; xlsxStatus.textContent = currentXlsxFile ? `Excel: ${currentXlsxFile.name}` : 'Sin Excel'; log(currentXlsxFile? `Excel seleccionado: ${currentXlsxFile.name}` : 'Excel deseleccionado', currentXlsxFile? 'ok' : ''); });
+
+    analyzeBtn.addEventListener('click', async ()=>{
+      if(!currentPdfFile){ log('Subí un PDF primero.', 'err'); alert('Por favor, adjuntá un PDF.'); return; }
+      try{
+        const adv = document.getElementById('advMode')?.checked;
+        analyzeBtn.disabled = true; analyzeBtn.querySelector('.btn-label').innerHTML = '<span class="spinner"></span> Procesando...';
+        log('Extrayendo texto del PDF... (modo '+ (adv? 'avanzado' : 'simple') +')');
+        const txt = await extractPdfText(currentPdfFile, {advanced: adv});
+        document.getElementById('rawText').value = txt; document.getElementById('lenTxt').textContent = String(txt.length);
+        const contCount = (txt.match(/\b[A-Z]{4}\d{7}\b/g)||[]).length; document.getElementById('cntCont').textContent = String(contCount);
+        log('Aplicando reglas y heurísticas...');
+        const row = parse_pdf(txt);
+        currentRow = row; fillPreview(row);
+        log('Previsualización lista. Revisá/edita los campos si hace falta.', 'ok');
+        downloadBtn.disabled = false;
+      }catch(err){ console.error(err); log('Error analizando el PDF: '+ err.message, 'err'); alert('Error analizando el PDF: '+ err.message); }
+      finally{ analyzeBtn.disabled = false; analyzeBtn.querySelector('.btn-label').textContent = 'Analizar PDF y previsualizar'; }
+    });
+
+    downloadBtn.addEventListener('click', async ()=>{
+      if(!currentRow){ alert('Primero analizá el PDF.'); return; }
+      try{
+        downloadBtn.disabled = true; downloadBtn.innerHTML = '<span class="spinner"></span> Generando Excel...';
+        let wb;
+        if(currentXlsxFile){ log('Cargando Excel existente...'); const buf = await readFileAsArrayBuffer(currentXlsxFile); wb = XLSX.read(buf, {type: 'array'}); } else { log('Creando Excel en blanco...'); wb = createBlankWorkbook(); }
+        const missing = []; ['Número de B/L','Número de Factura','Customer Order Number','Precio Final (USD)'].forEach(k=>{ if(!currentRow[k]) missing.push(k); }); if(missing.length){ log('⚠️ Campos con valor vacío: '+missing.join(', ')+' (revisá el Inspector o editá manualmente antes de descargar).'); }
+        appendRowToWorkbook(wb, currentRow);
+        const outName = (currentXlsxFile? currentXlsxFile.name.replace(/\.xlsx?$/i, '') : 'Master_Envios') + '_actualizado.xlsx';
+        downloadWorkbook(wb, outName);
+        log('Excel generado y descargado ✔', 'ok');
+      }catch(err){ console.error(err); log('Error generando Excel: '+ err.message, 'err'); alert('Error generando Excel: '+ err.message); }
+      finally{ downloadBtn.disabled = false; downloadBtn.textContent = 'Actualizar Excel y descargar'; }
+    });
+
+    resetBtn.addEventListener('click', ()=>{ currentPdfFile = null; currentXlsxFile = null; currentRow = null; pdfInput.value = ''; xlsxInput.value = ''; document.getElementById('rawText').value=''; document.getElementById('lenTxt').textContent='0'; document.getElementById('cntCont').textContent='0'; pdfStatus.textContent = 'Ningún PDF'; xlsxStatus.textContent = 'Sin Excel'; previewBody.innerHTML = ''; downloadBtn.disabled = true; log('Estado reiniciado.'); });
+
+    // Drag & Drop global
+    document.addEventListener('dragover', e=> e.preventDefault());
+    document.addEventListener('drop', e=>{ e.preventDefault(); const files = [...(e.dataTransfer?.files||[])]; if(!files.length) return; const pdf = files.find(f=> /pdf$/i.test(f.name)); const xls = files.find(f=> /xlsx?$/i.test(f.name)); if(pdf){ const dt = new DataTransfer(); dt.items.add(pdf); pdfInput.files = dt.files; pdfInput.dispatchEvent(new Event('change')); } if(xls){ const dt2 = new DataTransfer(); dt2.items.add(xls); xlsxInput.files = dt2.files; xlsxInput.dispatchEvent(new Event('change')); } });
+
+    // Botón Inspector (toggle)
+    document.getElementById('showDebug').addEventListener('click', ()=>{ const box = document.querySelectorAll('.card')[2]; if(box){ box.style.display = box.style.display==='none' ? '' : (box.style.display===''?'none':''); } });
+
+    // Atajo abrir archivo
+    window.addEventListener('keydown', (e)=>{ if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='o'){ e.preventDefault(); pdfInput.click(); } });
+  });
+  </script>
+</body>
+</html>
